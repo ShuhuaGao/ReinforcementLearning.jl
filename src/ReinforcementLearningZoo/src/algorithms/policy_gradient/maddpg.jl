@@ -13,9 +13,9 @@ See the paper https://arxiv.org/abs/1706.02275 for more details.
 - `update_step::Int`, count the step.
 - `rng::AbstractRNG`.
 """
-mutable struct MADDPGManager{P<:DDPGPolicy, T<:AbstractTrajectory, N<:Any} <: AbstractPolicy
-    agents::Dict{<:N, <:Agent{<:NamedPolicy{<:P, <:N}, <:T}}
-    traces
+mutable struct MADDPGManager{P<:DDPGPolicy,T<:AbstractTrajectory,N<:Any} <: AbstractPolicy
+    agents::Dict{<:N,<:Agent{<:NamedPolicy{<:P,<:N},<:T}}
+    traces::Any
     batch_size::Int
     update_freq::Int
     update_step::Int
@@ -30,7 +30,7 @@ function (π::MADDPGManager)(env::AbstractEnv)
     Dict((player, agent.policy(env)) for (player, agent) in π.agents)
 end
 
-function (π::MADDPGManager)(stage::Union{PreEpisodeStage, PostActStage}, env::AbstractEnv)
+function (π::MADDPGManager)(stage::Union{PreEpisodeStage,PostActStage}, env::AbstractEnv)
     # only need to update trajectory.
     for (_, agent) in π.agents
         update!(agent.trajectory, agent.policy, env, stage)
@@ -42,7 +42,7 @@ function (π::MADDPGManager)(stage::PreActStage, env::AbstractEnv, actions)
     for (player, agent) in π.agents
         update!(agent.trajectory, agent.policy, env, stage, actions[player])
     end
-    
+
     # update policy
     update!(π, env)
 end
@@ -66,14 +66,18 @@ function RLBase.update!(π::MADDPGManager, env::AbstractEnv)
         length(agent.trajectory) > agent.policy.policy.update_after || return
         length(agent.trajectory) > π.batch_size || return
     end
-    
+
     # get training data
     temp_player = collect(keys(π.agents))[1]
     t = π.agents[temp_player].trajectory
     inds = rand(π.rng, 1:length(t), π.batch_size)
-    batches = Dict((player, RLCore.fetch!(BatchSampler{π.traces}(π.batch_size), agent.trajectory, inds)) 
-                for (player, agent) in π.agents)
-    
+    batches = Dict(
+        (
+            player,
+            RLCore.fetch!(BatchSampler{π.traces}(π.batch_size), agent.trajectory, inds),
+        ) for (player, agent) in π.agents
+    )
+
     # get s, a, s′ for critic
     s = Flux.stack((batches[player][:state] for (player, _) in π.agents), 1)
     a = Flux.stack((batches[player][:action] for (player, _) in π.agents), 1)
@@ -81,19 +85,29 @@ function RLBase.update!(π::MADDPGManager, env::AbstractEnv)
 
     # for training behavior_actor
     mu_actions = Flux.stack(
-        ((
-            batches[player][:state] |> # get personal state information
-            x -> send_to_device(device(agent.policy.policy.behavior_actor), x) |>
-            agent.policy.policy.behavior_actor |> send_to_host
-        ) for (player, agent) in π.agents), 1
+        (
+            (
+                batches[player][:state] |> # get personal state information
+                x ->
+                    send_to_device(device(agent.policy.policy.behavior_actor), x) |>
+                    agent.policy.policy.behavior_actor |>
+                    send_to_host
+            ) for (player, agent) in π.agents
+        ),
+        1,
     )
     # for training behavior_critic
     new_actions = Flux.stack(
-        ((
-            batches[player][:next_state] |> # get personal next_state information
-            x -> send_to_device(device(agent.policy.policy.target_actor), x) |>
-            agent.policy.policy.target_actor |> send_to_host
-        ) for (player, agent) in π.agents), 1
+        (
+            (
+                batches[player][:next_state] |> # get personal next_state information
+                x ->
+                    send_to_device(device(agent.policy.policy.target_actor), x) |>
+                    agent.policy.policy.target_actor |>
+                    send_to_host
+            ) for (player, agent) in π.agents
+        ),
+        1,
     )
 
     for (player, agent) in π.agents
@@ -115,18 +129,18 @@ function RLBase.update!(π::MADDPGManager, env::AbstractEnv)
 
             mask = batches[player][:next_legal_actions_mask]
             mu_actions, new_actions = send_to_host((mu_actions, new_actions)) # make sure that the actions on cpu.
-            mu_l′ = Flux.batch(
-                (begin
+            mu_l′ = Flux.batch((
+                begin
                     actions = env.action_mapping(mu_actions[:, i])
                     mask[actions[player]]
-                end for i = 1:π.batch_size)
-            )
-            new_l′ = Flux.batch(
-                (begin
+                end for i in 1:π.batch_size
+            ))
+            new_l′ = Flux.batch((
+                begin
                     actions = env.action_mapping(new_actions[:, i])
                     mask[actions[player]]
-                end for i = 1:π.batch_size)
-            )
+                end for i in 1:π.batch_size
+            ))
         end
 
         _device(x) = send_to_device(device(A), x)

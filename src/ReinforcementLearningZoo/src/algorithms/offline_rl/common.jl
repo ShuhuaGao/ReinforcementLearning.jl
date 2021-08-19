@@ -1,11 +1,11 @@
 export OfflinePolicy, RLTransition
 
 struct RLTransition
-    state
-    action
-    reward
-    terminal
-    next_state
+    state::Any
+    action::Any
+    reward::Any
+    terminal::Any
+    next_state::Any
 end
 
 Base.@kwdef struct OfflinePolicy{L,T} <: AbstractPolicy
@@ -24,7 +24,8 @@ function (π::OfflinePolicy)(env, ::MinimalActionSet, ::Base.OneTo)
         findmax(π.learner(env))[2]
     end
 end
-(π::OfflinePolicy)(env, ::FullActionSet, ::Base.OneTo) = findmax(π.learner(env), legal_action_space_mask(env))[2]
+(π::OfflinePolicy)(env, ::FullActionSet, ::Base.OneTo) =
+    findmax(π.learner(env), legal_action_space_mask(env))[2]
 
 function (π::OfflinePolicy)(env, ::MinimalActionSet, A)
     if π.continuous
@@ -33,7 +34,8 @@ function (π::OfflinePolicy)(env, ::MinimalActionSet, A)
         A[findmax(π.learner(env))[2]]
     end
 end
-(π::OfflinePolicy)(env, ::FullActionSet, A) = A[findmax(π.learner(env), legal_action_space_mask(env))[2]]
+(π::OfflinePolicy)(env, ::FullActionSet, A) =
+    A[findmax(π.learner(env), legal_action_space_mask(env))[2]]
 
 function RLBase.update!(
     p::OfflinePolicy,
@@ -60,7 +62,8 @@ function RLBase.update!(
     l = p.learner
     l.update_step += 1
 
-    if in(:target_update_freq, fieldnames(typeof(l))) && l.update_step % l.target_update_freq == 0
+    if in(:target_update_freq, fieldnames(typeof(l))) &&
+       l.update_step % l.target_update_freq == 0
         copyto!(l.target_approximator, l.approximator)
     end
 
@@ -97,9 +100,13 @@ end
     calculate_CQL_loss(q_value, action; method)
 See paper: [Conservative Q-Learning for Offline Reinforcement Learning](https://arxiv.org/abs/2006.04779)
 """
-function calculate_CQL_loss(q_value::Matrix{T}, action::Vector{R}; method = "CQL(H)") where {T, R}
+function calculate_CQL_loss(
+    q_value::Matrix{T},
+    action::Vector{R};
+    method = "CQL(H)",
+) where {T,R}
     if method == "CQL(H)"
-        cql_loss = mean(log.(sum(exp.(q_value), dims=1)) .- q_value[action])
+        cql_loss = mean(log.(sum(exp.(q_value), dims = 1)) .- q_value[action])
     else
         @error Wrong method parameter
     end

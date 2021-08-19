@@ -1,7 +1,7 @@
 export rl_unplugged_atari_dataset
 
 using Base.Threads
-using Printf:@sprintf
+using Printf: @sprintf
 using Base.Iterators
 using TFRecord
 using ImageCore
@@ -14,14 +14,14 @@ using PNGFiles
 Represent an RLTransition and can also represent a batch.
 """
 struct RLTransition
-    state
-    action
-    reward
-    terminal
-    next_state
-    next_action
-    episode_id
-    episode_return
+    state::Any
+    action::Any
+    reward::Any
+    terminal::Any
+    next_state::Any
+    next_action::Any
+    episode_id::Any
+    episode_return::Any
 end
 
 function batch(template::RLTransition, src::RLTransition, i::Int)
@@ -38,7 +38,7 @@ function decode_frame(bytes)
 end
 
 function decode_state(bytes)
-    PermutedDimsArray(StackedView((decode_frame(x) for x in bytes)...), (2,3,1))
+    PermutedDimsArray(StackedView((decode_frame(x) for x in bytes)...), (2, 3, 1))
 end
 
 function RLTransition(example::TFRecord.Example)
@@ -80,65 +80,62 @@ function rl_unplugged_atari_dataset(
     game::String,
     run::Int,
     shards::Vector{Int};
-    shuffle_buffer_size=10_000,
-    tf_reader_bufsize=1*1024*1024,
-    tf_reader_sz=10_000,
-    batch_size=256,
-    n_preallocations=nthreads()*12
+    shuffle_buffer_size = 10_000,
+    tf_reader_bufsize = 1 * 1024 * 1024,
+    tf_reader_sz = 10_000,
+    batch_size = 256,
+    n_preallocations = nthreads() * 12,
 )
     n = nthreads()
 
     @info "Loading the shards $shards in $run run of $game with $n threads"
 
     folders = [
-        @datadep_str "rl-unplugged-atari-$(titlecase(game))-$run-$shard"
-        for shard in shards
+        @datadep_str "rl-unplugged-atari-$(titlecase(game))-$run-$shard" for
+        shard in shards
     ]
-    
+
     ch_files = Channel{String}(length(folders)) do ch
         for folder in cycle(folders)
             file = folder * "/$(readdir(folder)[1])"
             put!(ch, file)
         end
     end
-    
+
     shuffled_files = buffered_shuffle(ch_files, length(folders))
-    
+
     ch_src = Channel{RLTransition}(n * tf_reader_sz) do ch
         for fs in partition(shuffled_files, n)
             Threads.foreach(
                 TFRecord.read(
                     fs;
-                    compression=:gzip,
-                    bufsize=tf_reader_bufsize,
-                    channel_size=tf_reader_sz,
+                    compression = :gzip,
+                    bufsize = tf_reader_bufsize,
+                    channel_size = tf_reader_sz,
                 );
-                schedule=Threads.StaticSchedule()
+                schedule = Threads.StaticSchedule(),
             ) do x
                 put!(ch, RLTransition(x))
             end
         end
     end
-    
-    transitions = buffered_shuffle(
-        ch_src,
-        shuffle_buffer_size
-    )
-    
+
+    transitions = buffered_shuffle(ch_src, shuffle_buffer_size)
+
     buffer_template = RLTransition(
-        Array{UInt8, 4}(undef, 84, 84, 4, batch_size),
-        Array{Int, 1}(undef, batch_size),
-        Array{Float32, 1}(undef, batch_size),
-        Array{Bool, 1}(undef, batch_size),
-        Array{UInt8, 4}(undef, 84, 84, 4, batch_size),
-        Array{Int, 1}(undef, batch_size),
-        Array{Int, 1}(undef, batch_size),
-        Array{Float32, 1}(undef, batch_size),
+        Array{UInt8,4}(undef, 84, 84, 4, batch_size),
+        Array{Int,1}(undef, batch_size),
+        Array{Float32,1}(undef, batch_size),
+        Array{Bool,1}(undef, batch_size),
+        Array{UInt8,4}(undef, 84, 84, 4, batch_size),
+        Array{Int,1}(undef, batch_size),
+        Array{Int,1}(undef, batch_size),
+        Array{Float32,1}(undef, batch_size),
     )
 
     taskref = Ref{Task}()
 
-    res = Channel{RLTransition}(n_preallocations; taskref=taskref, spawn=true) do ch
+    res = Channel{RLTransition}(n_preallocations; taskref = taskref, spawn = true) do ch
         Threads.@threads for i in 1:batch_size
             put!(ch, deepcopy(batch(buffer_template, popfirst!(transitions), i)))
         end

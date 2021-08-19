@@ -55,11 +55,15 @@ const TESTING_SUITE = [
 ]
 
 # Total of 45 games.
-const ALL = cat(TUNING_SUITE, TESTING_SUITE, dims=1)
+const ALL = cat(TUNING_SUITE, TESTING_SUITE, dims = 1)
 
 function fetch_rl_unplugged_atari(src, dest)
-    try run(`which gsutil`) catch x throw("gsutil not found, install gsutil to proceed further") end
-    
+    try
+        run(`which gsutil`)
+    catch x
+        throw("gsutil not found, install gsutil to proceed further")
+    end
+
     run(`gsutil -m cp $src $dest`)
     return dest
 end
@@ -95,9 +99,10 @@ function rl_unplugged_atari_init()
                         on Atari if you are interested in comparing your approach to other state of the 
                         art offline RL methods with discrete actions.
                         """,
-                        "gs://rl_unplugged/atari/$game/"*@sprintf("run_%i-%05i-of-%05i", run, index, num_shards);
-                        fetch_method = fetch_rl_unplugged_atari
-                    )
+                        "gs://rl_unplugged/atari/$game/" *
+                        @sprintf("run_%i-%05i-of-%05i", run, index, num_shards);
+                        fetch_method = fetch_rl_unplugged_atari,
+                    ),
                 )
             end
         end
