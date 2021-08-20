@@ -117,7 +117,9 @@ function (p::DDPGPolicy)(env)
         D = device(p.behavior_actor)
         s = state(env)
         s = Flux.unsqueeze(s, ndims(s) + 1)
+        #GSH state --> policy -> action 
         actions = p.behavior_actor(send_to_device(D, s)) |> vec |> send_to_host
+        #GSH: act_limit is the limitation of the action, which must be symmetric on positive & negative sizes
         c = clamp.(actions .+ randn(p.rng, p.na) .* repeat([p.act_noise], p.na), -p.act_limit, p.act_limit)
         p.na == 1 && return c[1]
         c

@@ -37,7 +37,7 @@ end
 mutable struct MountainCarEnv{A,T,ACT,R<:AbstractRNG} <: AbstractEnv
     params::MountainCarEnvParams{T}
     action_space::A
-    observation_space::Space{Vector{ClosedInterval{T}}}
+    observation_space::Space{Vector{ClosedInterval{T}}} #  each observations is a vector
     state::Vector{T}
     action::ACT
     done::Bool
@@ -51,7 +51,7 @@ end
 # Keyword arguments
 
 - `T = Float64`
-- `continuous = false`
+- `continuous = false`: whether the scalar action is continuous
 - `rng = Random.GLOBAL_RNG`
 - `min_pos = -1.2`
 - `max_pos = 0.6`
@@ -106,6 +106,7 @@ function RLBase.reset!(env::MountainCarEnv{A,T}) where {A,T}
     nothing
 end
 
+# (env::AbstractEnv)(action, player=current_player(env))
 function (env::MountainCarEnv{<:ClosedInterval})(a::AbstractFloat)
     @assert a in env.action_space
     env.action = a

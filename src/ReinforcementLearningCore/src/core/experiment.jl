@@ -31,6 +31,7 @@ macro experiment_cmd(s)
     Experiment(s)
 end
 
+# https://docs.julialang.org/en/v1/manual/metaprogramming/#Non-Standard-String-Literals
 # alias for experiment_cmd
 macro E_cmd(s)
     Experiment(s)
@@ -51,6 +52,7 @@ function Experiment(s::String)
     )
 end
 
+#TODO GSH add a keyword argument `describe::Bool=true`
 function Base.run(x::Experiment)
     display(Markdown.parse(x.description))
     run(x.policy, x.env, x.stop_condition, x.hook)

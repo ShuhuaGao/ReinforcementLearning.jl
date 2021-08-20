@@ -270,6 +270,7 @@ function test_runnable!(env, n = 1000; rng = Random.GLOBAL_RNG)
             a = rand(rng, A)
             @test a in A
 
+            # @api const EXPLICIT_STOCHASTIC = ExplicitStochastic()
             if ActionStyle(env) === EXPLICIT_STOCHASTIC &&
                current_player(env) == chance_player(env)
                 @test isapprox(sum(prob(env)), 1)
@@ -277,6 +278,8 @@ function test_runnable!(env, n = 1000; rng = Random.GLOBAL_RNG)
 
             S = state_space(env)
             s = state(env)
+            # if `S` is a `WorldSpace`, then only type is tested 
+            # Base.in(x, ::WorldSpace{T}) where {T} = x isa T
             @test s in S
             env(a)
             if is_terminated(env)

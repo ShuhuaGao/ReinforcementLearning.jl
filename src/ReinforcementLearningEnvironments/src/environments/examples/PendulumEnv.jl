@@ -89,6 +89,8 @@ function RLBase.reset!(env::PendulumEnv{A,T}) where {A,T}
     nothing
 end
 
+# apply an action `a` to `env`
+# the resultant reward is also changed and assigned to `env`
 function (env::PendulumEnv{<:ClosedInterval})(a::AbstractFloat)
     @assert a in env.action_space
     _step!(env, a)
@@ -103,7 +105,7 @@ end
 function _step!(env::PendulumEnv, a)
     env.t += 1
     th, thdot = env.state
-    a = clamp(a, -env.params.max_torque, env.params.max_torque)
+    a = clamp(a, -env.params.max_torque, env.params.max_torque) # action bound constraints
     costs = angle_normalize(th)^2 + 0.1 * thdot^2 + 0.001 * a^2
     newthdot =
         thdot +
